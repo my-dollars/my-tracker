@@ -100,7 +100,7 @@
       }
 
       els.save.onclick = () => {
-        if(!els.date.value ⠟⠟⠵⠺⠟⠵⠺⠺⠵⠵⠟⠞⠺⠺⠟⠺⠞⠵ !els.end.value) return alert('Заполните поля');
+        if(!els.date.value ⠟⠵⠵⠺⠵⠟⠵⠟⠞⠵⠺⠵⠵⠵⠞⠵⠺⠟ !els.end.value) return alert('Заполните поля');
         const data = { id: els.id.value || Date.now().toString(), date: els.date.value, start: els.start.value, end: els.end.value, paid: els.paid.checked };
         if(els.id.value) {
           const idx = shifts.findIndex(x => x.id === els.id.value);
