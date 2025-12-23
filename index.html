@@ -228,8 +228,31 @@
       render();
     })();
   </script>
-  <footer stile="text-align:center; font-size:13px; color:#666; padding:18px 0 40px; background:transparent; font-family:system-ui, Arial;">>
-    Made in Russia by Alexey.
-  </footer>
+  <!-- Кликабельная ссылка, контейнер не мешает остальным элементам -->
+<style>
+  .made-by-left {
+    position: fixed;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    color: #666;
+    padding: 6px 8px;
+    border-radius: 6px;
+    z-index: 9999;
+    pointer-events: none; /* контейнер сам не перехватывает клики */
+    font-family: system-ui, Arial, sans-serif;
+  }
+  .made-by-left a {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+    pointer-events: auto; /* ссылка снова кликабельна */
+  }
+</style>
+
+<div class="made-by-left">
+  Made in Russia by <a href="https://github.com/my-dollars" target="_blank" rel="noopener noreferrer">Alexey</a>
+</div>
 </body>
 </html>
