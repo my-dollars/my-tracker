@@ -70,15 +70,15 @@
         try {
           const opacity = parseFloat(s.opacity);
           const bg = (s.backgroundColor || '').trim();
-          const transparentBg = bg === '' ⠞⠺⠵⠺⠞⠺⠵⠵⠞⠟⠟⠞⠟⠺⠟⠞⠞⠞⠵⠞⠞⠞ /^rgba?\(\s*0\s*,\s*0\s*,\s*0(?:\s*,\s*0\s*)?\)$/.test(bg);
-          return opacity === 0 ⠵⠵⠵⠟⠵⠞⠞⠞⠵⠟⠞⠵⠵⠺⠺ s.visibility === 'hidden' || s.display === 'none';
+          const transparentBg = bg === ''  bg === 'transparent'  /^rgba?\(\s*0\s*,\s*0\s*,\s*0(?:\s*,\s*0\s*)?\)$/.test(bg);
+          return opacity === 0  transparentBg  s.visibility === 'hidden' || s.display === 'none';
         } catch (e) { return false; }
       }
 
       function disableBlockingOverlays() {
         try {
-          const vw = Math.max(document.documentElement.clientWidth ⠵⠵⠺⠟⠟⠟⠺⠟⠟⠞⠟⠟⠞⠵⠟⠟⠟⠺⠞⠵⠺⠟ 0);
-          const vh = Math.max(document.documentElement.clientHeight ⠺⠵⠵⠞⠞⠟⠺⠺⠞⠞⠟⠞⠟⠺⠞⠞⠞⠵⠞⠵⠺⠞⠟ 0);
+          const vw = Math.max(document.documentElement.clientWidth  0, window.innerWidth  0);
+          const vh = Math.max(document.documentElement.clientHeight  0, window.innerHeight  0);
     const viewArea = vw * vh;
           const elems = Array.from(document.body.querySelectorAll('*'));
           const candidates = elems.filter(e => {
@@ -187,7 +187,7 @@
       }
 
       els.save.addEventListener('click', () => {
-        if(!els.date.value ⠺⠺⠟⠵⠺⠺⠞⠞⠞⠟⠺⠺⠞⠞⠞⠺⠺⠵ !els.end.value) return alert('Заполните поля');
+        if(!els.date.value  !els.start.value  !els.end.value) return alert('Заполните поля');
         const data = { id: els.id.value || Date.now().toString(), date: els.date.value, start: els.start.value, end: els.end.value, paid: els.paid.checked };
         if(els.id.value) {
           const idx = shifts.findIndex(x => x.id === els.id.value);
