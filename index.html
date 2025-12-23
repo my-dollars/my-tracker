@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Трекер смен</title>
+  <title>Простой трекер смен</title>
   <style>
     :root{ --bg:#f6f7f9; --card:#fff; --accent:#0a84ff; --danger:#d64545; --text:#111; }
     *{box-sizing:border-box}
@@ -13,117 +13,179 @@
     .card{background:var(--card);padding:10px;border-radius:8px;margin-bottom:10px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     label{font-size:13px}
-    input[type="date"],input[type="time"],input[type="number"],input{padding:6px;border:1px solid #ddd;border-radius:6px}
+    input[type="date"],input[type="time"],input[type="number"],input[type="text"]{padding:6px;border:1px solid #ddd;border-radius:6px}
     button{background:var(--accent);color:#fff;border:0;padding:7px 10px;border-radius:6px;cursor:pointer}
     button.danger{background:var(--danger)}
     table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
     th,td{padding:6px 4px;text-align:left;border-bottom:1px solid #eee}
+    td.actions{white-space:nowrap}
     .muted{color:#666;font-size:13px}
+    @media (max-width:520px){ .row{flex-direction:column;align-items:stretch} }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Простой трекер смен</h1>
-    <div class="card">
+
+    <div class="card" id="settings">
       <div class="row">
-        <label>Ставка/час: <input id="rate" type="number" value="200" style="width:80px" /></label>
-        <label>Валюта: <input id="currency" type="text" value="₽" style="width:50px" /></label>
-        <button id="clearAll" class="danger">Очистить всё</button>
+        <label>Ставка/час:
+          <input id="rate" type="number" min="0" step="0.01" style="width:110px" />
+        </label>
+        <label>Валюта:
+          <input id="currency" type="text" maxlength="4" style="width:70px" />
+        </label>
+        <button id="clearAll" class="danger" title="Удалить все записи">Очистить</button>
       </div>
+      <div class="muted" style="margin-top:8px">Made in Russia by Aleksei | 2025</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="formCard">
       <form id="shiftForm" class="row" onsubmit="return false">
         <input id="shiftId" type="hidden" />
         <label>Дата: <input id="date" type="date" required /></label>
         <label>Начало: <input id="start" type="time" required /></label>
         <label>Конец: <input id="end" type="time" required /></label>
         <label>Оплата: <input id="paid" type="checkbox" /></label>
-        <button id="save">Добавить</button>
-        <button id="cancel" type="button" style="background:#888">Отмена</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="save">Добавить</button>
+          <button id="cancel" style="background:#888">Отмена</button>
+        </div>
       </form>
     </div>
 
     <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Список смен</strong>
+        <div class="muted" id="counts"></div>
+      </div>
       <table id="table">
         <thead>
-          <tr><th>Дата</th><th>Время</th><th>Часы</th><th>Сумма</th><th>Опл.</th><th>Действия</th></tr>
+          <tr>
+            <th>Дата</th>
+            <th>Время</th>
+            <th>Часы</th>
+            <th>Сумма</th>
+            <th>Опл.</th>
+            <th>Действия</th>
+          </tr>
         </thead>
         <tbody></tbody>
       </table>
-      <div id="summary" class="muted" style="margin-top:10px"></div>
+      <div class="muted" id="summary" style="margin-top:8px"></div>
     </div>
   </div>
 
   <script>
     (function(){
-      const KEY = 'shifts_data_2025';
-      let shifts = JSON.parse(localStorage.getItem(KEY) || '[]');
+      const KEY = 'simple_shifts_v1';
+      let shifts = [];
 
-      const els = {
-        rate: document.getElementById('rate'),
-        curr: document.getElementById('currency'),
-        tbody: document.querySelector('#table tbody'),
-        summary: document.getElementById('summary'),
-        form: document.getElementById('shiftForm'),
-        save: document.getElementById('save'),
-        id: document.getElementById('shiftId'),
-        date: document.getElementById('date'),
-        start: document.getElementById('start'),
-        end: document.getElementById('end'),
-        paid: document.getElementById('paid')
-      };
+      const rateEl = document.getElementById('rate');
+      const currencyEl = document.getElementById('currency');
+      const clearAllBtn = document.getElementById('clearAll');
+      const saveBtn = document.getElementById('save');
+      const cancelBtn = document.getElementById('cancel');
+      const idEl = document.getElementById('shiftId');
+      const dateEl = document.getElementById('date');
+      const startEl = document.getElementById('start');
+      const endEl = document.getElementById('end');
+      const paidEl = document.getElementById('paid');
+      const tbody = document.querySelector('#table tbody');
+      const summaryEl = document.getElementById('summary');
+      const countsEl = document.getElementById('counts');
 
-      function computeHours(s, e) {
-        let [sh, sm] = s.split(':').map(Number);
-        let [eh, em] = e.split(':').map(Number);
-        let startMins = sh * 60 + sm;
-        let endMins = eh * 60 + em;
-        if (endMins <= startMins) endMins += 1440;
-        return Math.round(((endMins - startMins) / 60) * 100) / 100;
+      function load(){
+        try {
+          const raw = localStorage.getItem(KEY);
+          if(raw) shifts = JSON.parse(raw);
+        } catch(e){ shifts = []; }
+        if(!rateEl.value) rateEl.value = 200;
+        if(!currencyEl.value) currencyEl.value = '₽';
+        render();
       }
 
-      function render() {
-        els.tbody.innerHTML = '';
+      function saveStorage(){
+        try { localStorage.setItem(KEY, JSON.stringify(shifts)); } catch(e){}
+      }
+
+      function resetForm(){
+        idEl.value = '';
+        dateEl.value = '';
+        startEl.value = '';
+        endEl.value = '';
+        paidEl.checked = false;
+        saveBtn.textContent = 'Добавить';
+      }
+
+      function computeHours(start, end){
+        const [sh, sm] = start.split(':').map(Number);
+        const [eh, em] = end.split(':').map(Number);
+        let s = sh*60 + sm;
+        let e = eh*60 + em;
+        if(e <= s) e += 24*60;
+        return Math.round(((e - s)/60) * 100) / 100;
+      }
+
+      function render(){
+        tbody.innerHTML = '';
+        const items = shifts.slice().sort((a,b)=> a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
         let totalH = 0, totalE = 0, totalP = 0;
-        shifts.sort((a,b) => a.date.localeCompare(b.date)).forEach(s => {
+        const rate = Number(rateEl.value) || 0;
+
+        items.forEach(s => {
           const h = computeHours(s.start, s.end);
-          const e = Math.round(h * Number(els.rate.value) * 100) / 100;
+          const e = Math.round(h * rate * 100) / 100;
           totalH += h; totalE += e; if(s.paid) totalP += e;
+
           const tr = document.createElement('tr');
-          tr.innerHTML = <td>${s.date}</td><td>${s.start}-${s.end}</td><td>${h}</td><td>${e} ${els.curr.value}</td><td>${s.paid?'✅':''}</td>
-            <td><button onclick="editShift('${s.id}')">✎</button> <button class="danger" onclick="delShift('${s.id}')">✕</button></td>;
-          els.tbody.appendChild(tr);
+          tr.innerHTML = 
+            <td>${s.date}</td>
+            <td>${s.start}-${s.end}</td>
+            <td>${h}</td>
+            <td>${e} ${currencyEl.value}</td>
+            <td>${s.paid ? '✅' : ''}</td>
+            <td class="actions">
+              <button class="edit" data-id="${s.id}">Изм</button>
+              <button class="del" data-id="${s.id}" style="background:var(--danger)">Уд</button>
+            </td>
+          ;
+          tbody.appendChild(tr);
         });
-        els.summary.textContent = Всего: ${totalE} ${els.curr.value} | Оплачено: ${totalP} | Долг: ${(totalE-totalP).toFixed(2)};
-        localStorage.setItem(KEY, JSON.stringify(shifts));
+        summaryEl.textContent = Итого: ${totalE} ${currencyEl.value} (Осталось получить: ${Math.round((totalE-totalP)*100)/100});
+        countsEl.textContent = ${items.length} шт.;
       }
 
-      els.save.onclick = () => {
-        if(!els.date.value ⠟⠵⠵⠺⠵⠟⠵⠟⠞⠵⠺⠵⠵⠵⠞⠵⠺⠟ !els.end.value) return alert('Заполните поля');
-        const data = { id: els.id.value || Date.now().toString(), date: els.date.value, start: els.start.value, end: els.end.value, paid: els.paid.checked };
-        if(els.id.value) {
-          const idx = shifts.findIndex(x => x.id === els.id.value);
-          shifts[idx] = data;
+      saveBtn.addEventListener('click', ()=>{
+        if(!dateEl.value ⠞⠟⠞⠞⠵⠟⠞⠵⠵⠞⠵⠺⠺⠺⠺⠵ !endEl.value) return;
+        const data = { id: idEl.value || Date.now().toString(36), date: dateEl.value, start: startEl.value, end: endEl.value, paid: paidEl.checked };
+        if(idEl.value){
+          const idx = shifts.findIndex(x=>x.id === idEl.value);
+          if(idx > -1) shifts[idx] = data;
         } else {
           shifts.push(data);
         }
-        els.form.reset(); els.id.value = ''; els.save.textContent = 'Добавить'; render();
-      };
+        saveStorage(); resetForm(); render();
+      });
 
-      window.editShift = (id) => {
-        const s = shifts.find(x => x.id === id);
-        els.id.value = s.id; els.date.value = s.date; els.start.value = s.start; els.end.value = s.end; els.paid.checked = s.paid;
-        els.save.textContent = 'Обновить';
-      };
+      tbody.addEventListener('click', (e)=>{
+        const id = e.target.dataset.id;
+        if(!id) return;
+        if(e.target.classList.contains('del')){
+          if(confirm('Удалить?')) { shifts = shifts.filter(x=>x.id !== id); saveStorage(); render(); }
+        } else if(e.target.classList.contains('edit')){
+          const s = shifts.find(x=>x.id === id);
+          idEl.value = s.id; dateEl.value = s.date; startEl.value = s.start; endEl.value = s.end; paidEl.checked = s.paid;
+          saveBtn.textContent = 'Обновить';
+        }
+      });
 
-      window.delShift = (id) => { if(confirm('Удалить?')) { shifts = shifts.filter(x => x.id !== id); render(); } };
-      document.getElementById('clearAll').onclick = () => { if(confirm('Очистить всё?')) { shifts = []; render(); } };
-      document.getElementById('cancel').onclick = () => { els.form.reset(); els.id.value = ''; els.save.textContent = 'Добавить'; };
-      
-      els.rate.oninput = render;
-      els.curr.oninput = render;
-      render();
+      clearAllBtn.addEventListener('click', ()=>{
+        if(confirm('Удалить всё?')) { shifts = []; saveStorage(); render(); }
+      });
+
+      cancelBtn.addEventListener('click', resetForm);
+      load();
     })();
   </script>
 </body>
