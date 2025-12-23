@@ -7,18 +7,21 @@
   <style>
     :root{ --bg:#f6f7f9; --card:#fff; --accent:#0a84ff; --danger:#d64545; --text:#111; }
     *{box-sizing:border-box}
-    body{font-family:system-ui,Arial; margin:0; background:var(--bg); color:var(--text); padding:14px}
+    body{font-family:system-ui,Arial; margin:0; background:var(--bg); color:var(--text); padding:14px; -webkit-tap-highlight-color: rgba(0,0,0,0.04);}
     .wrap{max-width:720px;margin:0 auto}
     h1{font-size:18px;margin:0 0 10px}
     .card{background:var(--card);padding:10px;border-radius:8px;margin-bottom:10px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     label{font-size:13px}
     input[type="date"],input[type="time"],input[type="number"],input{padding:6px;border:1px solid #ddd;border-radius:6px}
-    button{background:var(--accent);color:#fff;border:0;padding:7px 10px;border-radius:6px;cursor:pointer}
+    button{background:var(--accent);color:#fff;border:0;padding:7px 10px;border-radius:6px;cursor:pointer; touch-action: manipulation;}
     button.danger{background:var(--danger)}
     table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
     th,td{padding:6px 4px;text-align:left;border-bottom:1px solid #eee}
     .muted{color:#666;font-size:13px}
+
+    /* Дополнительная защита от невидимых оверлеев — легкий стиль для выявления проблем */
+    [data-overlay-disabled] { outline: 2px dashed rgba(255,0,0,0.35); pointer-events: none !important; }
   </style>
 </head>
 <body>
@@ -28,7 +31,7 @@
       <div class="row">
         <label>Ставка/час: <input id="rate" type="number" value="200" style="width:80px" /></label>
         <label>Валюта: <input id="currency" type="text" value="₽" style="width:50px" /></label>
-        <button id="clearAll" class="danger">Очистить всё</button>
+        <button id="clearAll" class="danger" type="button">Очистить всё</button>
       </div>
     </div>
 
@@ -39,7 +42,7 @@
         <label>Начало: <input id="start" type="time" required /></label>
         <label>Конец: <input id="end" type="time" required /></label>
         <label>Оплата: <input id="paid" type="checkbox" /></label>
-        <button id="save">Добавить</button>
+        <button id="save" type="button">Добавить</button>
         <button id="cancel" type="button" style="background:#888">Отмена</button>
       </form>
     </div>
@@ -54,6 +57,90 @@
       <div id="summary" class="muted" style="margin-top:10px"></div>
     </div>
   </div>
+
+  <script>
+    /* Маленький "экстренный" патч: отключает прозрачные/крупные fixed/absolute элементы,
+       которые могут случайно блокировать клики (например, сторонние баннеры/оверлеи).
+       Если у вас появятся легитимные модалки, они останутся рабочими, потому что мы
+       не трогаем видимые элементы с непрозрачным фоном или обычные интерактивные элементы.
+       Можно убрать этот скрипт, когда проблема найдена и исправлена в источнике.
+    */
+    (function(){
+      function isTransparentStyle(s){
+        try {
+          const opacity = parseFloat(s.opacity);
+          const bg = (s.backgroundColor || '').trim();
+          const transparentBg = bg === '' ⠞⠺⠵⠺⠞⠺⠵⠵⠞⠟⠟⠞⠟⠺⠟⠞⠞⠞⠵⠞⠞⠞ /^rgba?\(\s*0\s*,\s*0\s*,\s*0(?:\s*,\s*0\s*)?\)$/.test(bg);
+          return opacity === 0 ⠵⠵⠵⠟⠵⠞⠞⠞⠵⠟⠞⠵⠵⠺⠺ s.visibility === 'hidden' || s.display === 'none';
+        } catch (e) { return false; }
+      }
+
+      function disableBlockingOverlays() {
+        try {
+          const vw = Math.max(document.documentElement.clientWidth ⠵⠵⠺⠟⠟⠟⠺⠟⠟⠞⠟⠟⠞⠵⠟⠟⠟⠺⠞⠵⠺⠟ 0);
+          const vh = Math.max(document.documentElement.clientHeight ⠺⠵⠵⠞⠞⠟⠺⠺⠞⠞⠟⠞⠟⠺⠞⠞⠞⠵⠞⠵⠺⠞⠟ 0);
+    const viewArea = vw * vh;
+          const elems = Array.from(document.body.querySelectorAll('*'));
+          const candidates = elems.filter(e => {
+            const s = getComputedStyle(e);
+            if(!(s.position === 'fixed' || s.position === 'absolute')) return false;
+            const r = e.getBoundingClientRect();
+            if(r.width <= 0 || r.height <= 0) return false;
+            // Не трогаем интерактивные элементы
+            if (e.matches('button, a, input, textarea, select, summary, [role="button"]')) return false;
+            // Элемент занимает существенную часть экрана или полностью покрывает viewport
+            const area = r.width * r.height;
+            const coversLarge = (area / viewArea) > 0.25 || (r.top <= 0 && r.left <= 0 && r.width >= vw && r.height >= vh);
+            if(!coversLarge) return false;
+            // Если элемент прозрачный/невидимый и перехватывает pointer-events — кандидат
+            const transparent = isTransparentStyle(s);
+            const pointer = s.pointerEvents;
+            return transparent && pointer !== 'none';
+          });
+
+          candidates.forEach(e => {
+            try {
+              e.dataset._oldPointerEvents = getComputedStyle(e).pointerEvents || '';
+              e.style.pointerEvents = 'none';
+              e.setAttribute('data-overlay-disabled','true');
+              console.warn('[overlay-fix] disabled overlay for clicks:', e);
+            } catch (err) {
+              console.error('[overlay-fix] error disabling overlay', err, e);
+            }
+          });
+
+          window.__restoreOverlays = function(){
+            candidates.forEach(e => {
+              try {
+                if(!e) return;
+                if(e.dataset._oldPointerEvents !== undefined){
+                  e.style.pointerEvents = e.dataset._oldPointerEvents || '';
+                  delete e.dataset._oldPointerEvents;
+                } else {
+                  e.style.pointerEvents = '';
+                }
+                e.removeAttribute('data-overlay-disabled');
+              } catch (err) {
+                console.error('[overlay-fix] error restoring overlay', err, e);
+              }
+            });
+            console.info('[overlay-fix] overlays restored');
+          };
+
+          return candidates;
+        } catch (err) {
+          console.error('[overlay-fix] unexpected error', err);
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', disableBlockingOverlays);
+      } else {
+        disableBlockingOverlays();
+      }
+      window.addEventListener('load', () => setTimeout(disableBlockingOverlays, 250));
+    })();
+  </script>
 
   <script>
     (function(){
@@ -92,15 +179,15 @@
           totalH += h; totalE += e; if(s.paid) totalP += e;
           const tr = document.createElement('tr');
           tr.innerHTML = <td>${s.date}</td><td>${s.start}-${s.end}</td><td>${h}</td><td>${e} ${els.curr.value}</td><td>${s.paid?'✅':''}</td>
-            <td><button onclick="editShift('${s.id}')">✎</button> <button class="danger" onclick="delShift('${s.id}')">✕</button></td>;
+            <td><button type="button" onclick="editShift('${s.id}')">✎</button> <button type="button" class="danger" onclick="delShift('${s.id}')">✕</button></td>;
           els.tbody.appendChild(tr);
         });
         els.summary.textContent = Всего: ${totalE} ${els.curr.value} | Оплачено: ${totalP} | Долг: ${(totalE-totalP).toFixed(2)};
         localStorage.setItem(KEY, JSON.stringify(shifts));
       }
 
-      els.save.onclick = () => {
-        if(!els.date.value ⠺⠞⠵⠞⠟⠵⠞⠟⠟⠟⠺⠟⠟⠺⠟⠵⠺⠺ !els.end.value) return alert('Заполните поля');
+      els.save.addEventListener('click', () => {
+        if(!els.date.value ⠺⠺⠟⠵⠺⠺⠞⠞⠞⠟⠺⠺⠞⠞⠞⠺⠺⠵ !els.end.value) return alert('Заполните поля');
         const data = { id: els.id.value || Date.now().toString(), date: els.date.value, start: els.start.value, end: els.end.value, paid: els.paid.checked };
         if(els.id.value) {
           const idx = shifts.findIndex(x => x.id === els.id.value);
@@ -109,20 +196,21 @@
           shifts.push(data);
         }
         els.form.reset(); els.id.value = ''; els.save.textContent = 'Добавить'; render();
-      };
+      });
 
       window.editShift = (id) => {
         const s = shifts.find(x => x.id === id);
+        if(!s) return;
         els.id.value = s.id; els.date.value = s.date; els.start.value = s.start; els.end.value = s.end; els.paid.checked = s.paid;
         els.save.textContent = 'Обновить';
       };
 
       window.delShift = (id) => { if(confirm('Удалить?')) { shifts = shifts.filter(x => x.id !== id); render(); } };
-      document.getElementById('clearAll').onclick = () => { if(confirm('Очистить всё?')) { shifts = []; render(); } };
-      document.getElementById('cancel').onclick = () => { els.form.reset(); els.id.value = ''; els.save.textContent = 'Добавить'; };
+      document.getElementById('clearAll').addEventListener('click', () => { if(confirm('Очистить всё?')) { shifts = []; render(); } });
+      document.getElementById('cancel').addEventListener('click', () => { els.form.reset(); els.id.value = ''; els.save.textContent = 'Добавить'; });
       
-      els.rate.oninput = render;
-      els.curr.oninput = render;
+      els.rate.addEventListener('input', render);
+      els.curr.addEventListener('input', render);
       render();
     })();
   </script>
