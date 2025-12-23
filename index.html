@@ -230,11 +230,11 @@
   </script>
   <!-- Кликабельная ссылка, контейнер не мешает остальным элементам -->
 <style>
-  .made-by-left {
+  .made-by-bottom {
     position: fixed;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
     font-size: 13px;
     color: #666;
     padding: 6px 8px;
@@ -243,15 +243,15 @@
     pointer-events: none; /* контейнер сам не перехватывает клики */
     font-family: system-ui, Arial, sans-serif;
   }
-  .made-by-left a {
+  .made-by-bottom a {
     color: inherit;
     text-decoration: none;
     font-weight: 600;
-    pointer-events: auto; /* ссылка снова кликабельна */
+    pointer-events: auto; /* ссылка кликабельна */
   }
 </style>
 
-<div class="made-by-left">
+<div class="made-by-bottom">
   Made in Russia by <a href="https://github.com/my-dollars" target="_blank" rel="noopener noreferrer">Alexey</a>
 </div>
 </body>
